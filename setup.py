@@ -77,7 +77,7 @@ if sys.version_info < (2, 7, 0):
 
 install_requires = [
   # 'PyYAML >=3.10',
-  # 'argh >=0.8.1',
+  # 'argh >=0.24.1',
   'pathtools >=0.1.1',
   ]
 if sys.version_info < (2, 7, 0):

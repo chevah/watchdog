@@ -71,7 +71,7 @@ from __future__ import with_statement
 
 import os
 import threading
-from .inotify_buffered import InotifyBuffered
+from .inotify_buffer import InotifyBuffer
 
 from watchdog.observers.api import (
     EventEmitter,
@@ -88,8 +88,11 @@ from watchdog.events import (
     FileDeletedEvent,
     FileModifiedEvent,
     FileMovedEvent,
-    FileCreatedEvent
+    FileCreatedEvent,
+    generate_sub_moved_events,
+    generate_sub_created_events,
 )
+from watchdog.utils import unicode_paths
 
 
 class InotifyEmitter(EventEmitter):
@@ -111,7 +114,14 @@ class InotifyEmitter(EventEmitter):
     def __init__(self, event_queue, watch, timeout=DEFAULT_EMITTER_TIMEOUT):
         EventEmitter.__init__(self, event_queue, watch, timeout)
         self._lock = threading.Lock()
-        self._inotify = InotifyBuffered(watch.path, watch.is_recursive)
+        self._inotify = InotifyBuffer(unicode_paths.encode(watch.path),
+                                      watch.is_recursive)
+
+    def _decode_path(self, path):
+        """ Decode path only if unicode string was passed to this emitter. """
+        if isinstance(self.watch.path, bytes):
+            return path
+        return unicode_paths.decode(path)
 
     def on_thread_stop(self):
         self._inotify.close()
@@ -122,34 +132,42 @@ class InotifyEmitter(EventEmitter):
 
             if isinstance(event, tuple):
                 move_from, move_to = event
+                src_path = self._decode_path(move_from.src_path)
+                dest_path = self._decode_path(move_to.src_path)
                 cls = DirMovedEvent if move_from.is_directory else FileMovedEvent
-                self.queue_event(cls(move_from.src_path, move_to.src_path))
-                self.queue_event(DirModifiedEvent(os.path.dirname(move_from.src_path)))
-                self.queue_event(DirModifiedEvent(os.path.dirname(move_to.src_path)))
-
-                #TODO: remove all record keeping code from inotify_c
-
+                self.queue_event(cls(src_path, dest_path))
+                self.queue_event(DirModifiedEvent(os.path.dirname(src_path)))
+                self.queue_event(DirModifiedEvent(os.path.dirname(dest_path)))
                 if move_from.is_directory and self.watch.is_recursive:
-                    for sub_event in event.sub_moved_events():
+                    for sub_event in generate_sub_moved_events(src_path, dest_path):
                         self.queue_event(sub_event)
+                return
 
+            src_path = self._decode_path(event.src_path)
+            if event.is_moved_to:
+                cls = DirCreatedEvent if event.is_directory else FileCreatedEvent
+                self.queue_event(cls(src_path))
+                self.queue_event(DirModifiedEvent(os.path.dirname(src_path)))
+                if event.is_directory and self.watch.is_recursive:
+                    for sub_event in generate_sub_created_events(src_path):
+                        self.queue_event(sub_event)
             elif event.is_attrib:
                 cls = DirModifiedEvent if event.is_directory else FileModifiedEvent
-                self.queue_event(cls(event.src_path))
+                self.queue_event(cls(src_path))
             elif event.is_modify:
                 cls = DirModifiedEvent if event.is_directory else FileModifiedEvent
-                self.queue_event(cls(event.src_path))
+                self.queue_event(cls(src_path))
             elif event.is_delete_self:
                 cls = DirDeletedEvent if event.is_directory else FileDeletedEvent
-                self.queue_event(cls(event.src_path))
+                self.queue_event(cls(src_path))
             elif event.is_delete or event.is_moved_from:
                 cls = DirDeletedEvent if event.is_directory else FileDeletedEvent
-                self.queue_event(cls(event.src_path))
-                self.queue_event(DirModifiedEvent(os.path.dirname(event.src_path)))
-            elif event.is_create or event.is_moved_to:
+                self.queue_event(cls(src_path))
+                self.queue_event(DirModifiedEvent(os.path.dirname(src_path)))
+            elif event.is_create:
                 cls = DirCreatedEvent if event.is_directory else FileCreatedEvent
-                self.queue_event(cls(event.src_path))
-                self.queue_event(DirModifiedEvent(os.path.dirname(event.src_path)))
+                self.queue_event(cls(src_path))
+                self.queue_event(DirModifiedEvent(os.path.dirname(src_path)))
 
 
 class InotifyObserver(BaseObserver):
