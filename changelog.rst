@@ -3,6 +3,13 @@
 API changes
 -----------
 
+0.8.0.c1
+~~~~~~~~
+
+ - Fix InotifyEmitter thread stop.
+ - Fix Observer unschedule and unschedule_all to wait for emitter to stop.
+
+
 0.8.0
 ~~~~~
 

@@ -258,14 +258,26 @@ class BaseObserver(EventDispatcher):
     def _remove_emitter(self, emitter):
         del self._emitter_for_watch[emitter.watch]
         self._emitters.remove(emitter)
-        emitter.stop()
+        self._stopThread(emitter)
 
     def _get_emitter_for_watch(self, watch):
         return self._emitter_for_watch[watch]
 
+    def _stopThread(self, thread):
+        """
+        Stop thread and wait for it to end.
+
+        An exception is raised if thread was not completely stopped.
+        """
+        thread.stop()
+        thread.join(5)
+
     def _clear_emitters(self):
         for emitter in self._emitters:
-            emitter.stop()
+            self._stopThread(emitter)
+
+        self._emitters.clear()
+        self._emitter_for_watch.clear()
         self._emitters.clear()
         self._emitter_for_watch.clear()
 
