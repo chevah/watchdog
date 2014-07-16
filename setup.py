@@ -75,7 +75,11 @@ tests_require=['pytest', 'pytest-cov', 'pytest-timeout >=0.3']
 if sys.version_info < (2, 7, 0):
     tests_require.append('unittest2')
 
-install_requires = ['PyYAML >=3.10', 'argh >=0.8.1', 'pathtools >=0.1.1']
+install_requires = [
+  # 'PyYAML >=3.10',
+  # 'argh >=0.8.1',
+  'pathtools >=0.1.1',
+  ]
 if sys.version_info < (2, 7, 0):
     # argparse is merged into Python 2.7 in the Python 2x series
     # and Python 3.2 in the Python 3x series.
@@ -89,11 +93,12 @@ if sys.version_info < (2, 7, 0):
 with open('README.rst') as f:
     readme = f.read()
 
-with open('changelog.rst') as f:
-    changelog = f.read()
+# with open('changelog.rst') as f:
+#     changelog = f.read()
+changelog = ''
 
 setup(name="watchdog",
-      version=version.VERSION_STRING,
+      version=version.VERSION_STRING + '.c1',
       description="Filesystem events monitoring",
       long_description=readme + '\n\n' + changelog,
       author="Yesudeep Mangalapilly",
@@ -141,7 +146,7 @@ setup(name="watchdog",
           'build_ext': build_ext,
           'test': PyTest,
       },
-      ext_modules=ext_modules,
+      # ext_modules=ext_modules,
       entry_points={'console_scripts': [
           'watchmedo = watchdog.watchmedo:main',
       ]},
