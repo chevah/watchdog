@@ -53,31 +53,3 @@ Class          Platforms                        Note
 .. |Polling|     replace:: :class:`.polling.PollingObserver`
 
 """
-
-import warnings
-from watchdog.utils import platform
-
-if platform.is_linux():
-    from .inotify import InotifyObserver as Observer
-
-elif platform.is_darwin():
-    try:
-        from .fsevents import FSEventsObserver as Observer
-    except:
-        from .kqueue import KqueueObserver as Observer
-        warnings.warn("Failed to import fsevents. Fall back to kqueue")
-
-elif platform.is_bsd():
-    from .kqueue import KqueueObserver as Observer
-
-elif platform.is_windows():
-    # TODO: find a reliable way of checking Windows version and import
-    # polling explicitly for Windows XP
-    try:
-        from .read_directory_changes import WindowsApiObserver as Observer
-    except:
-        from .polling import PollingObserver as Observer
-        warnings.warn("Failed to import read_directory_changes. Fall back to polling.")
-
-else:
-    from .polling import PollingObserver as Observer

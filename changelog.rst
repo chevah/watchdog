@@ -3,6 +3,12 @@
 API changes
 -----------
 
+0.8.0.c2
+~~~~~~~~
+
+ - Remove automatic observer selection from observers.__init__.py.
+
+
 0.8.0.c1
 ~~~~~~~~
 
