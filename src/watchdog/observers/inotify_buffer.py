@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import time
-import logging
 import threading
 from collections import deque
 from watchdog.utils import DaemonThread
@@ -33,18 +32,17 @@ class _Worker(DaemonThread):
         DaemonThread.__init__(self)
         self._read_events = inotify.read_events
         self._queue = queue
+        self.daemon = False
 
     def run(self):
         while self.should_keep_running():
             inotify_events = self._read_events()
             for inotify_event in inotify_events:
-                logging.debug("worker: in event %s", inotify_event)
                 if inotify_event.is_moved_to:
                     from_event = self._queue._catch(inotify_event.cookie)
                     if from_event:
                         self._queue._put((from_event, inotify_event))
                     else:
-                        logging.debug("worker: could not find maching move_from event")
                         self._queue._put(inotify_event)
                 else:
                     self._queue._put(inotify_event)
@@ -58,11 +56,22 @@ class InotifyBuffer(object):
     def __init__(self, path, recursive=False):
         self.delay = 0.5
         self._lock = threading.Lock()
+        self._lock_init = threading.Lock()
         self._not_empty = threading.Condition(self._lock)
         self._queue = deque()
-        self._inotify = Inotify(path, recursive)
-        self._worker = _Worker(self._inotify, self)
-        self._worker.start()
+        self._path = path
+        self._recursive = recursive
+        self._inotify = None
+        self._worker = None
+
+    def start(self):
+        """
+        Start reading inotify events.
+        """
+        with self._lock_init:
+            self._inotify = Inotify(self._path, self._recursive)
+            self._worker = _Worker(self._inotify, self)
+            self._worker.start()
 
     def read_event(self):
         """
@@ -93,12 +102,14 @@ class InotifyBuffer(object):
                 self._lock.release()
 
     def close(self):
-        self._worker.stop()
-        self._inotify.close()
-        self._worker.join()
-        # Add the stop event to unblock the read_event which waits for
-        # events in the queue... even after inotify buffer is closed.
-        self._put(STOP_EVENT)
+        with self._lock_init:
+            if self._worker:
+                self._worker.stop()
+                self._inotify.close()
+                self._worker.join()
+            # Add the stop event to unblock the read_event which waits for
+            # events in the queue... even after inotify buffer is closed.
+            self._put(STOP_EVENT)
 
     def _put(self, elem):
         self._lock.acquire()

@@ -51,6 +51,7 @@ Classes
 
 from __future__ import with_statement
 import threading
+import time
 from watchdog.utils import DaemonThread
 from watchdog.utils.compat import queue
 from watchdog.utils.bricks import SkipRepeatsQueue
@@ -138,6 +139,7 @@ class EventEmitter(DaemonThread):
         self._event_queue = event_queue
         self._watch = watch
         self._timeout = timeout
+        self.daemon = False
 
     @property
     def timeout(self):
@@ -152,6 +154,14 @@ class EventEmitter(DaemonThread):
         The watch associated with this emitter.
         """
         return self._watch
+
+    @property
+    def ready(self):
+        """
+        True after watch is active.
+        """
+        return True
+
 
     def queue_event(self, event):
         """
@@ -200,6 +210,7 @@ class EventDispatcher(DaemonThread):
         DaemonThread.__init__(self)
         self._event_queue = EventQueue()
         self._timeout = timeout
+        self.daemon = False
 
     @property
     def timeout(self):
@@ -246,6 +257,7 @@ class BaseObserver(EventDispatcher):
         EventDispatcher.__init__(self, timeout)
         self._emitter_class = emitter_class
         self._lock = threading.Lock()
+        self._lock_start = threading.Lock()
         self._watches = set()
         self._handlers = dict()
         self._emitters = set()
@@ -269,6 +281,8 @@ class BaseObserver(EventDispatcher):
 
         An exception is raised if thread was not completely stopped.
         """
+        if not thread.isAlive():
+            return
         thread.stop()
         thread.join(5)
 
@@ -296,6 +310,16 @@ class BaseObserver(EventDispatcher):
     def _remove_handler_for_watch(self, handler, watch):
         handlers = self._get_handlers_for_watch(watch)
         handlers.remove(handler)
+
+    def _start_emitter(self, emitter):
+        """
+        Start emitter and wait for it to become ready.
+        """
+        emitter.start()
+        # We can not use emitter.isAlive() as it is true, even before
+        # run initialization.
+        while not emitter.ready:
+            time.sleep(0.01)
 
     def schedule(self, event_handler, path, recursive=False):
         """
@@ -335,7 +359,9 @@ class BaseObserver(EventDispatcher):
                                               watch=watch,
                                               timeout=self.timeout)
                 self._add_emitter(emitter)
-                emitter.start()
+                # Start emitter if we are already running.
+                if self.isAlive():
+                    self._start_emitter(emitter)
             self._watches.add(watch)
         return watch
 
@@ -419,3 +445,10 @@ class BaseObserver(EventDispatcher):
             # queue is empty.
             pass
         event_queue.task_done()
+
+    def run(self):
+        with self._lock:
+            for emitter in self._emitters:
+                if not emitter.isAlive():
+                    self._start_emitter(emitter)
+        return EventDispatcher.run(self)

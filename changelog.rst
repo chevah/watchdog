@@ -3,6 +3,14 @@
 API changes
 -----------
 
+0.8.0.c3
+~~~~~~~~
+
+ - Don't start emitter thread before observer is started.
+ - Remove logging from inotify_buffer.
+ - Wait for emitter to start before returning from schedule.
+
+
 0.8.0.c2
 ~~~~~~~~
 
