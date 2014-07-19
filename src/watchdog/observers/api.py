@@ -139,7 +139,6 @@ class EventEmitter(DaemonThread):
         self._event_queue = event_queue
         self._watch = watch
         self._timeout = timeout
-        self.daemon = False
 
     @property
     def timeout(self):
@@ -210,7 +209,6 @@ class EventDispatcher(DaemonThread):
         DaemonThread.__init__(self)
         self._event_queue = EventQueue()
         self._timeout = timeout
-        self.daemon = False
 
     @property
     def timeout(self):

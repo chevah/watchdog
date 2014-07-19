@@ -98,7 +98,7 @@ with open('README.rst') as f:
 changelog = ''
 
 setup(name="watchdog",
-      version=version.VERSION_STRING + '.c4',
+      version=version.VERSION_STRING + '.c5',
       description="Filesystem events monitoring",
       long_description=readme + '\n\n' + changelog,
       author="Yesudeep Mangalapilly",

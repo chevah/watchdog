@@ -4,6 +4,14 @@ API changes
 -----------
 
 
+0.8.0.c5
+~~~~~~~~
+
+- On Windows Native (ReadDirectoryChangesW) don't monitor changes on
+  file attributes / security / last access time.
+- Revert to daemon threads as on Windows we don't yet know what is going on.
+
+
 0.8.0.c4
 ~~~~~~~~
 
