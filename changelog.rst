@@ -3,6 +3,13 @@
 API changes
 -----------
 
+
+0.8.0.c4
+~~~~~~~~
+
+- Wait for polling emitter to start and take a first snapshot at start.
+
+
 0.8.0.c3
 ~~~~~~~~
 
