@@ -4,6 +4,12 @@ API changes
 -----------
 
 
+0.8.0.c6
+~~~~~~~~
+
+- Ignore permission changes in Inotify.
+
+
 0.8.0.c5
 ~~~~~~~~
 

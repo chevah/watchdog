@@ -111,7 +111,8 @@ class InotifyConstants(object):
 WATCHDOG_ALL_EVENTS = reduce(
     lambda x, y: x | y, [
         InotifyConstants.IN_MODIFY,
-        InotifyConstants.IN_ATTRIB,
+        # We ignore changes in meta data.
+        # InotifyConstants.IN_ATTRIB,
         InotifyConstants.IN_MOVED_FROM,
         InotifyConstants.IN_MOVED_TO,
         InotifyConstants.IN_CREATE,
