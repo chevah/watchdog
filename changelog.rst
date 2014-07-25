@@ -3,6 +3,11 @@
 API changes
 -----------
 
+0.8.0.c7
+~~~~~~~~
+
+- Catch in main thread start error from inotify and directory polling.
+
 
 0.8.0.c6
 ~~~~~~~~

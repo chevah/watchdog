@@ -139,6 +139,7 @@ class EventEmitter(DaemonThread):
         self._event_queue = event_queue
         self._watch = watch
         self._timeout = timeout
+        self._start_error = None
 
     @property
     def timeout(self):
@@ -161,6 +162,12 @@ class EventEmitter(DaemonThread):
         """
         return True
 
+    @property
+    def start_error(self):
+        """
+        Set when emitter fails to start.
+        """
+        return self._start_error
 
     def queue_event(self, event):
         """
@@ -318,6 +325,8 @@ class BaseObserver(EventDispatcher):
         # run initialization.
         while not emitter.ready:
             time.sleep(0.01)
+            if emitter.start_error:
+                raise emitter.start_error
 
     def schedule(self, event_handler, path, recursive=False):
         """

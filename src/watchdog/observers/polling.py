@@ -82,8 +82,12 @@ class PollingEmitter(EventEmitter):
         Start the looking for changes.
         """
         # Take initial state at start.
-        self._snapshot = self._take_snapshot()
-        return EventEmitter.run(self)
+        try:
+            self._snapshot = self._take_snapshot()
+            return EventEmitter.run(self)
+        except Exception, error:
+            self._start_error = error
+            self.stop()
 
     @property
     def ready(self):

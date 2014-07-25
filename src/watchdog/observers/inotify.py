@@ -124,8 +124,12 @@ class InotifyEmitter(EventEmitter):
         return unicode_paths.decode(path)
 
     def run(self):
-        self._inotify.start()
-        return EventEmitter.run(self)
+        try:
+            self._inotify.start()
+            return EventEmitter.run(self)
+        except Exception, error:
+            self._start_error = error
+            self.stop()
 
     @property
     def ready(self):
