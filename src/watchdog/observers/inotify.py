@@ -141,7 +141,7 @@ class InotifyEmitter(EventEmitter):
     def on_thread_stop(self):
         self._inotify.close()
 
-    def queue_events(self, timeout):
+    def queue_events(self, timeout=None):
         with self._lock:
             event = self._inotify.read_event()
 

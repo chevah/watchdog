@@ -44,3 +44,9 @@ htmlcov/
 include/
 lib/
 /bootstrap.py
+
+# From chevah
+cache/
+DEFAULT_VALUES
+build-*
+

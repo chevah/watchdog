@@ -97,7 +97,7 @@ with open('README.rst') as f:
 #     changelog = f.read()
 changelog = ''
 
-setup(name="watchdog",
+distribution = setup(name="watchdog",
       version=version.VERSION_STRING + '.c7',
       description="Filesystem events monitoring",
       long_description=readme + '\n\n' + changelog,
