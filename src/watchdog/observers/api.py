@@ -158,7 +158,7 @@ class EventEmitter(DaemonThread):
     @property
     def ready(self):
         """
-        True after watch is active.
+        True when emitter is active and ready to listen for events.
         """
         return True
 
@@ -168,6 +168,14 @@ class EventEmitter(DaemonThread):
         Set when emitter fails to start.
         """
         return self._start_error
+
+    def start(self):
+        """
+        Start emitter in blocking mode waiting for it to be ready.
+        """
+        super(EventEmitter, self).start()
+        while not self.ready:
+            time.sleep(0.01)
 
     def queue_event(self, event):
         """
@@ -267,6 +275,7 @@ class BaseObserver(EventDispatcher):
         self._handlers = dict()
         self._emitters = set()
         self._emitter_for_watch = dict()
+        self._ready = False
 
     def _add_emitter(self, emitter):
         self._emitter_for_watch[emitter.watch] = emitter
@@ -275,30 +284,19 @@ class BaseObserver(EventDispatcher):
     def _remove_emitter(self, emitter):
         del self._emitter_for_watch[emitter.watch]
         self._emitters.remove(emitter)
-        self._stopThread(emitter)
+
+        # We might remove an emitter, before starting it, so there is no
+        # need to join the thread
+        if emitter.isAlive():
+            emitter.stop()
+            emitter.join()
 
     def _get_emitter_for_watch(self, watch):
         return self._emitter_for_watch[watch]
 
-    def _stopThread(self, thread):
-        """
-        Stop thread and wait for it to end.
-
-        An exception is raised if thread was not completely stopped.
-        """
-        if not thread.isAlive():
-            return
-        thread.stop()
-        thread.join(5)
-
     def _clear_emitters(self):
-        for emitter in self._emitters:
-            self._stopThread(emitter)
-
-        self._emitters.clear()
-        self._emitter_for_watch.clear()
-        self._emitters.clear()
-        self._emitter_for_watch.clear()
+        for emitter in self._emitters.copy():
+            self._remove_emitter(emitter)
 
     def _add_handler_for_watch(self, event_handler, watch):
         try:
@@ -320,13 +318,11 @@ class BaseObserver(EventDispatcher):
         """
         Start emitter and wait for it to become ready.
         """
+        # Don't start when it was already started.
+        if emitter.isAlive():
+            return
+
         emitter.start()
-        # We can not use emitter.isAlive() as it is true, even before
-        # run initialization.
-        while not emitter.ready:
-            time.sleep(0.01)
-            if emitter.start_error:
-                raise emitter.start_error
 
     def schedule(self, event_handler, path, recursive=False):
         """
@@ -366,9 +362,12 @@ class BaseObserver(EventDispatcher):
                                               watch=watch,
                                               timeout=self.timeout)
                 self._add_emitter(emitter)
-                # Start emitter if we are already running.
+                # We only start the emitter if main thread is already
+                # running.
                 if self.isAlive():
                     self._start_emitter(emitter)
+            # Here to help with testing.
+            watch._emitter = emitter
             self._watches.add(watch)
         return watch
 
@@ -453,9 +452,24 @@ class BaseObserver(EventDispatcher):
             pass
         event_queue.task_done()
 
+    @property
+    def ready(self):
+        """
+        True when observer is active and listening for events.
+        """
+        return self._ready
+
+    def start_blocking(self):
+        """
+        Start observer and wait for it to start listening for changes.
+        """
+        self.start()
+        while not self.ready:
+            time.sleep(0.01)
+
     def run(self):
         with self._lock:
             for emitter in self._emitters:
-                if not emitter.isAlive():
-                    self._start_emitter(emitter)
+                self._start_emitter(emitter)
+        self._ready = True
         return EventDispatcher.run(self)

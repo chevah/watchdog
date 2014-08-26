@@ -133,10 +133,7 @@ class InotifyEmitter(EventEmitter):
 
     @property
     def ready(self):
-        if self._inotify._inotify:
-            return True
-        else:
-            return False
+        return self._inotify.ready
 
     def on_thread_stop(self):
         self._inotify.close()
