@@ -126,14 +126,15 @@ class InotifyEmitter(EventEmitter):
     def run(self):
         try:
             self._inotify.start()
-            return EventEmitter.run(self)
         except Exception, error:
             self._start_error = error
             self.stop()
+        finally:
+            # Signal the emitter is ready... with or without errors.
+            self.ready.set()
 
-    @property
-    def ready(self):
-        return self._inotify.ready
+        return EventEmitter.run(self)
+
 
     def on_thread_stop(self):
         self._inotify.close()

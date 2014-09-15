@@ -81,20 +81,16 @@ class PollingEmitter(EventEmitter):
         """
         Start the looking for changes.
         """
-        # Take initial state at start.
         try:
             self._snapshot = self._take_snapshot()
-            return EventEmitter.run(self)
         except Exception, error:
             self._start_error = error
             self.stop()
+        finally:
+            # Signal that emitter is ready. With or without errors.
+            self.ready.set()
 
-    @property
-    def ready(self):
-        """
-        We are ready after first snapshot was taken.
-        """
-        return self._snapshot is not None
+        return EventEmitter.run(self)
 
     def queue_events(self, timeout):
         # We don't want to hit the disk continuously.

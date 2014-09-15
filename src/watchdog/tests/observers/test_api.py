@@ -19,6 +19,7 @@
 Tests for generic observer, generic emitter, generic event dispatcher...etc
 """
 import tempfile
+import threading
 
 from watchdog.observers.api import BaseObserver, EventEmitter, ObservedWatch
 from watchdog.tests import WatchdogTestCase
@@ -30,17 +31,34 @@ class DummyEventEmitter(EventEmitter):
     event emitters.
     """
 
-    _ready = None
+    def start(self):
+        self.ready.set()
+        return super(DummyEventEmitter, self).start()
 
-    @property
-    def ready(self):
-        """
-        Delay `ready` for the next call.
-        """
-        if self._ready is None:
-            self._ready = object()
-            return False
-        return True
+
+class DelayStartEventEmitter(EventEmitter):
+    """
+    An event emitter which delays the start until `delay` member is set.
+    """
+    exception = AssertionError('fail-to-start')
+
+    def start(self):
+        self.delay = threading.Event()
+        self.delay.wait(timeout=10)
+        self.ready.set()
+
+
+class FailToStartEventEmitter(EventEmitter):
+    """
+    An event emitter which fails to start.
+    """
+    exception = AssertionError('fail-to-start')
+    started = False
+
+    def start(self):
+        self.started = True
+        self._start_error = self.exception
+        self.ready.set()
 
 
 class TestEventEmitter(WatchdogTestCase):
@@ -55,7 +73,7 @@ class TestEventEmitter(WatchdogTestCase):
         self.sut = DummyEventEmitter(self.queue, watch, timeout=0)
 
     def tearDown(self):
-        if self.sut.isAlive():
+        if self.sut.is_alive():
             self.sut.stop()
             self.sut.join()
         super(TestEventEmitter, self).tearDown()
@@ -66,7 +84,7 @@ class TestEventEmitter(WatchdogTestCase):
         """
         self.sut.start()
 
-        self.assertTrue(self.sut.ready)
+        self.assertTrue(self.sut.ready.is_set())
 
 
 class DummyObserver(BaseObserver):
@@ -85,10 +103,22 @@ class TestBaseObserver(WatchdogTestCase):
         self.sut = DummyObserver(DummyEventEmitter, timeout=0)
 
     def tearDown(self):
-        if self.sut.isAlive():
+        if self.sut.is_alive():
             self.sut.stop()
             self.sut.join()
         super(TestBaseObserver, self).tearDown()
+
+    def getEmitterForWatch(self, watch, observer=None):
+        """
+        Return the emitter associated with the `watch`, or None
+        if no emitter is associated.
+        """
+        if observer is None:
+            observer = self.sut
+        try:
+            return observer._get_emitter_for_watch(watch)
+        except KeyError:
+            return None
 
     def test_schedule_not_started(self):
         """
@@ -96,8 +126,8 @@ class TestBaseObserver(WatchdogTestCase):
         """
         handler = self.sut.schedule('handler', tempfile.tempdir)
 
-        emitter = handler._emitter
-        self.assertFalse(emitter.isAlive())
+        emitter = self.getEmitterForWatch(handler)
+        self.assertFalse(emitter.is_alive())
 
     def test_schedule_started(self):
         """
@@ -108,22 +138,73 @@ class TestBaseObserver(WatchdogTestCase):
 
         handler = self.sut.schedule('handler', tempfile.tempdir)
 
-        emitter = handler._emitter
-        self.assertTrue(emitter.isAlive())
+        emitter = self.getEmitterForWatch(handler)
+        self.assertTrue(emitter.is_alive())
         self.assertTrue(emitter.ready)
+
+    def test_schedule_started_fail(self):
+        """
+        When emitter fails to start, it will raise the start error
+        and remove the emitter.
+        """
+        self.sut.start()
+        self.sut._emitter_class = FailToStartEventEmitter
+
+        with self.assertRaises(AssertionError) as context:
+            self.sut.schedule('handler', tempfile.tempdir)
+        self.assertIs(FailToStartEventEmitter.exception, context.exception)
+
+        self.assertIsEmpty(self.sut._emitters)
+
+    def test_run_fail_emitter(self):
+        """
+        When an emitter fails it will stop starting the other emitters
+        and raise the error.
+        """
+        self.sut._emitter_class = FailToStartEventEmitter
+        self.sut.schedule('handler-1', 'path-1')
+        self.sut.schedule('handler-1', 'path-2')
+        # Emitters is a set and we don't know its order.
+        self.assertEqual(2, len(self.sut._emitters))
+
+        with self.assertRaises(AssertionError) as context:
+            self.sut.run()
+
+        self.assertIs(FailToStartEventEmitter.exception, context.exception)
+        self.assertEqual(1, len(self.sut._emitters))
+        self.assertTrue(self.sut.ready.is_set())
 
     def test_start_blocking(self):
         """
         It starts the attached emitters.
         """
         handler = self.sut.schedule('handler', tempfile.tempdir)
-        emitter = handler._emitter
-        self.assertFalse(emitter.isAlive())
+        emitter = self.getEmitterForWatch(handler)
+        self.assertFalse(emitter.is_alive())
+        self.assertFalse(self.sut.is_alive())
 
         self.sut.start_blocking()
 
-        self.assertTrue(emitter.isAlive())
-        self.assertTrue(emitter.ready)
+        self.assertTrue(emitter.is_alive())
+        self.assertTrue(emitter.ready.is_set())
+        self.assertTrue(self.sut.is_alive())
+        self.assertTrue(self.sut.ready.is_set())
+
+    def test_start_blocking_timeout(self):
+        """
+        It starts the attached emitters.
+        """
+        self.sut._emitter_class = DelayStartEventEmitter
+        handler = self.sut.schedule('handler', tempfile.tempdir)
+        emitter = self.getEmitterForWatch(handler)
+        self.assertFalse(self.sut.is_alive())
+
+        with self.assertRaises(AssertionError) as context:
+            self.sut.start_blocking(timeout=0.01)
+
+        emitter.delay.set()
+        self.assertEqual('Took to much to start.', context.exception.message)
+        self.assertFalse(self.sut.ready.is_set())
 
     def test_unschedule_not_started(self):
         """
@@ -133,7 +214,7 @@ class TestBaseObserver(WatchdogTestCase):
 
         self.sut.unschedule(handler)
 
-        self.assertFalse(handler._emitter in self.sut._emitters)
+        self.assertIsNone(self.getEmitterForWatch(handler))
 
     def test_unschedule_all_not_started(self):
         """
@@ -143,4 +224,4 @@ class TestBaseObserver(WatchdogTestCase):
 
         self.sut.unschedule_all()
 
-        self.assertFalse(handler._emitter in self.sut._emitters)
+        self.assertIsNone(self.getEmitterForWatch(handler))

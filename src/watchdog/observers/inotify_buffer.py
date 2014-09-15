@@ -101,10 +101,6 @@ class InotifyBuffer(object):
             self._worker = _Worker(self._inotify, self)
             self._worker.start()
 
-    @property
-    def ready(self):
-        return self._inotify is not None
-
     def close(self):
         with self._lock_init:
             if self._worker:

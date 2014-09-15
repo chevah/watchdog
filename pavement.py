@@ -12,6 +12,12 @@ if os.name == 'nt':
     import tempfile
     tempfile.tempdir = "c:\\temp"
 
+    # On Windows cp65001 encoding is not installed.
+    # Work around <http://bugs.python.org/issue6058>.
+    import codecs
+    codecs.register(
+        lambda name: codecs.lookup('utf-8') if name == 'cp65001' else None)
+
 PACKAGES = [
 
     'pathtools==0.1.2',
@@ -93,7 +99,11 @@ SETUP['product']['name'] = 'watchdog'
 SETUP['folders']['source'] = u'src/watchdog'
 SETUP['repository']['name'] = u'watchdog'
 SETUP['github']['repo'] = 'chevah/watchdog'
-SETUP['pocket-lint']['include_files'] = ['pavement.py', 'README-chevah.rst']
+SETUP['pocket-lint']['include_files'] = [
+    'pavement.py',
+    'README-chevah.rst',
+    'changelog.rst',
+    ]
 SETUP['pocket-lint']['include_folders'] = ['src/watchdog/tests']
 SETUP['pocket-lint']['exclude_files'] = []
 SETUP['test']['package'] = 'watchdog.tests'
@@ -127,6 +137,7 @@ def build():
     build_target = pave.fs.join([pave.path.build, 'setup-build'])
     sys.argv = ['setup.py', '-q', 'build', '--build-base', build_target]
     print "Building in " + build_target
+    pave.fs.deleteFolder([pave.path.build, 'setup-build'])
     # Importing setup will trigger executing commands from sys.argv.
     import setup
     setup.distribution.run_command('install')
@@ -148,8 +159,17 @@ def _run(observer_class, args):
     import logging
     import time
     from watchdog.events import LoggingEventHandler
+    args = args[:]
+    if '--help' in args:
+        print 'Usage: [--recursive] [PATH]'
+        return
 
-    path = args[0] if len(args) > 1 else pave.path.build
+    recursive = False
+    if '--recursive' in args:
+        args.remove('--recursive')
+        recursive = True
+
+    path = args[0] if args else pave.path.build
 
     logging.basicConfig(
         level=logging.INFO,
@@ -159,7 +179,12 @@ def _run(observer_class, args):
 
     event_handler = LoggingEventHandler()
     observer = observer_class()
-    observer.schedule(event_handler, path, recursive=True)
+
+    # On Windows we force Unicode to make os.listdir als return Unicode.
+    if os.name == 'nt':
+        path = unicode(path)
+
+    observer.schedule(event_handler, path, recursive=recursive)
     print "Observer %s start monitoring %s\n" % (observer_class, path)
 
     observer.start()

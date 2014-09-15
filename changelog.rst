@@ -1,13 +1,46 @@
 .. :changelog:
 
+
 API changes
 -----------
+
+
+0.8.1.c6
+~~~~~~~~
+
+- Fail if observer took to much to start in blocking mode.
+
+
+0.8.1.c5
+~~~~~~~~
+
+- Prevent starting the same emitter twice by removing it after start failure.
+
+
+0.8.1.c4
+~~~~~~~~
+
+- Fix the emitter failing to become ready when there were errors at start.
+- Use threading.Event instead of time.sleep() loop.
+
+
+0.8.1.c3
+~~~~~~~~
+
+- Fix an error from 0.8.1.c4 where errors at emitter start were not raised.
+
+
+0.8.1.c2
+~~~~~~~~
+
+- Catch in main thread start error from read_directory_changes.
 
 
 0.8.1.c1
 ~~~~~~~~
 
-- Update.
+- Update with latest master.
+- Prevent starting the same emitter twice.
 
 
 0.8.0.c7

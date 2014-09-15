@@ -109,8 +109,9 @@ class ObservedWatch(object):
         return hash(self.key)
 
     def __repr__(self):
-        return "<ObservedWatch: path=%s, is_recursive=%s>" % (
+        text = u"<ObservedWatch: path=%s, is_recursive=%s>" % (
             self.path, self.is_recursive)
+        return text.encode('utf-8')
 
 
 # Observer classes
@@ -140,6 +141,7 @@ class EventEmitter(DaemonThread):
         self._watch = watch
         self._timeout = timeout
         self._start_error = None
+        self.ready = threading.Event()
 
     @property
     def timeout(self):
@@ -155,12 +157,6 @@ class EventEmitter(DaemonThread):
         """
         return self._watch
 
-    @property
-    def ready(self):
-        """
-        True when emitter is active and ready to listen for events.
-        """
-        return True
 
     @property
     def start_error(self):
@@ -174,8 +170,9 @@ class EventEmitter(DaemonThread):
         Start emitter in blocking mode waiting for it to be ready.
         """
         super(EventEmitter, self).start()
-        while not self.ready:
-            time.sleep(0.01)
+        if not self.ready.wait(timeout=10):
+            self._start_error = AssertionError(
+                'Emitter took to much to start.')
 
     def queue_event(self, event):
         """
@@ -269,13 +266,12 @@ class BaseObserver(EventDispatcher):
     def __init__(self, emitter_class, timeout=DEFAULT_OBSERVER_TIMEOUT):
         EventDispatcher.__init__(self, timeout)
         self._emitter_class = emitter_class
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._lock_start = threading.Lock()
-        self._watches = set()
         self._handlers = dict()
         self._emitters = set()
         self._emitter_for_watch = dict()
-        self._ready = False
+        self._ready = threading.Event()
 
     def _add_emitter(self, emitter):
         self._emitter_for_watch[emitter.watch] = emitter
@@ -287,7 +283,7 @@ class BaseObserver(EventDispatcher):
 
         # We might remove an emitter, before starting it, so there is no
         # need to join the thread
-        if emitter.isAlive():
+        if emitter.is_alive():
             emitter.stop()
             emitter.join()
 
@@ -319,10 +315,25 @@ class BaseObserver(EventDispatcher):
         Start emitter and wait for it to become ready.
         """
         # Don't start when it was already started.
-        if emitter.isAlive():
+        if emitter.is_alive():
             return
 
         emitter.start()
+
+        if not emitter.ready.wait(timeout=10):
+            self.unschedule(emitter.watch)
+            raise AssertionError('Emitter took to much to start.')
+
+        if emitter.start_error:
+            self.unschedule(emitter.watch)
+            raise emitter.start_error
+
+    @property
+    def ready(self):
+        """
+        Event which is set after observers starts.
+        """
+        return self._ready
 
     def schedule(self, event_handler, path, recursive=False):
         """
@@ -364,11 +375,8 @@ class BaseObserver(EventDispatcher):
                 self._add_emitter(emitter)
                 # We only start the emitter if main thread is already
                 # running.
-                if self.isAlive():
+                if self.is_alive():
                     self._start_emitter(emitter)
-            # Here to help with testing.
-            watch._emitter = emitter
-            self._watches.add(watch)
         return watch
 
     def add_handler_for_watch(self, event_handler, watch):
@@ -421,7 +429,6 @@ class BaseObserver(EventDispatcher):
                 emitter = self._get_emitter_for_watch(watch)
                 self._remove_handlers_for_watch(watch)
                 self._remove_emitter(emitter)
-                self._watches.remove(watch)
             except KeyError:
                 raise
 
@@ -431,7 +438,6 @@ class BaseObserver(EventDispatcher):
         with self._lock:
             self._handlers.clear()
             self._clear_emitters()
-            self._watches.clear()
 
     def on_thread_stop(self):
         self.unschedule_all()
@@ -452,24 +458,19 @@ class BaseObserver(EventDispatcher):
             pass
         event_queue.task_done()
 
-    @property
-    def ready(self):
-        """
-        True when observer is active and listening for events.
-        """
-        return self._ready
-
-    def start_blocking(self):
+    def start_blocking(self, timeout=60):
         """
         Start observer and wait for it to start listening for changes.
         """
         self.start()
-        while not self.ready:
-            time.sleep(0.01)
+        if not self.ready.wait(timeout=timeout):
+            raise AssertionError('Took to much to start.')
 
     def run(self):
         with self._lock:
-            for emitter in self._emitters:
-                self._start_emitter(emitter)
-        self._ready = True
+            try:
+                for emitter in self._emitters:
+                    self._start_emitter(emitter)
+            finally:
+                self.ready.set()
         return EventDispatcher.run(self)
