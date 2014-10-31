@@ -2,7 +2,6 @@
 Test for inotify emitter and observer.
 """
 from Queue import Queue
-import threading
 
 from watchdog.tests import WatchdogTestCase
 from watchdog.tests.observers.emitter_mixin import EmitterSystemMixin
@@ -28,11 +27,9 @@ class InMemoryInotifyBuffer(object):
             queue = []
         self.queue = queue
         self._inotify = None
-        self.ready = threading.Event()
 
     def start(self):
         self._inotify = object()
-        self.ready.set()
 
     def close(self):
         self._inotify = None
@@ -81,15 +78,10 @@ class TestInotifyEmitter(WatchdogTestCase, EmitterSystemMixin):
         self.patchBuffer()
         self.buffer.start = self.Mock(side_effect=[error])
 
-        self.sut.start()
+        with self.assertRaises(AssertionError) as context:
+            self.sut.start()
 
-        # Wait for thread to stop.
-        self.sut.join()
-        # Low level buffer is not ready but high level emitter is ready
-        # due to start error.
-        self.assertIsFalse(self.buffer.ready.is_set())
-        self.assertIs(error, self.sut.start_error)
-        self.assertIsTrue(self.sut.ready.is_set())
+        self.assertIs(error, context.exception)
 
     def test_queue_events_stop(self):
         """

@@ -67,16 +67,7 @@ class WindowsApiEmitter(EventEmitter):
         self._handle = None
 
     def on_thread_start(self):
-        """
-        Start the looking for changes.
-        """
-        try:
-            self._handle = get_directory_handle(self._watch.path)
-        except Exception as error:
-            self._start_error = error
-            return
-        finally:
-            self.ready.set()
+        self._handle = get_directory_handle(self.watch.path)
 
     def on_thread_stop(self):
         if self._handle:

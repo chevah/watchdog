@@ -118,15 +118,7 @@ class InotifyEmitter(EventEmitter):
                                       watch.is_recursive)
 
     def on_thread_start(self):
-        try:
-            self._inotify.start()
-        except Exception, error:
-            self._start_error = error
-            self.stop()
-        finally:
-            # Signal the emitter is ready... with or without errors.
-            self.ready.set()
-
+        self._inotify.start()
 
     def on_thread_stop(self):
         if self._inotify:

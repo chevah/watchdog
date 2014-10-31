@@ -104,8 +104,6 @@ class EventEmitter(BaseThread):
         self._event_queue = event_queue
         self._watch = watch
         self._timeout = timeout
-        self._start_error = None
-        self.ready = threading.Event()
 
     @property
     def timeout(self):
@@ -120,23 +118,6 @@ class EventEmitter(BaseThread):
         The watch associated with this emitter.
         """
         return self._watch
-
-
-    @property
-    def start_error(self):
-        """
-        Set when emitter fails to start.
-        """
-        return self._start_error
-
-    def start(self):
-        """
-        Start emitter in blocking mode waiting for it to be ready.
-        """
-        super(EventEmitter, self).start()
-        if not self.ready.wait(timeout=10):
-            self._start_error = AssertionError(
-                'Emitter took to much to start.')
 
     def queue_event(self, event):
         """
@@ -229,11 +210,9 @@ class BaseObserver(EventDispatcher):
         EventDispatcher.__init__(self, timeout)
         self._emitter_class = emitter_class
         self._lock = threading.RLock()
-        self._lock_start = threading.Lock()
         self._handlers = dict()
         self._emitters = set()
         self._emitter_for_watch = dict()
-        self._ready = threading.Event()
 
     def _add_emitter(self, emitter):
         self._emitter_for_watch[emitter.watch] = emitter
@@ -267,37 +246,22 @@ class BaseObserver(EventDispatcher):
 
     def _start_emitter(self, emitter):
         """
-        Start emitter and wait for it to become ready.
+        Start emitter.
         """
         # Don't start when it was already started.
         if emitter.is_alive():
             return
 
-        emitter.start()
-
-        if not emitter.ready.wait(timeout=10):
+        try:
+            emitter.start()
+        except:
             self.unschedule(emitter.watch)
-            raise AssertionError('Emitter took to much to start.')
+            raise
 
-        if emitter.start_error:
-            self.unschedule(emitter.watch)
-            raise emitter.start_error
-
-    @property
-    def ready(self):
-        """
-        Event which is set after observers starts.
-        """
-        return self._ready
-
-    def run(self):
-        with self._lock:
-            try:
-                for emitter in self._emitters:
-                    self._start_emitter(emitter)
-            finally:
-                self.ready.set()
-        super(BaseObserver, self).run()
+    def start(self):
+        for emitter in self._emitters:
+            self._start_emitter(emitter)
+        super(BaseObserver, self).start()
 
     def schedule(self, event_handler, path, recursive=False):
         """
@@ -412,11 +376,3 @@ class BaseObserver(EventDispatcher):
             # queue is empty.
             pass
         event_queue.task_done()
-
-    def start_blocking(self, timeout=60):
-        """
-        Start observer and wait for it to start listening for changes.
-        """
-        self.start()
-        if not self.ready.wait(timeout=timeout):
-            raise AssertionError('Took to much to start.')

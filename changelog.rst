@@ -5,6 +5,13 @@ API changes
 -----------
 
 
+0.8.2.c2
+~~~~~~~~
+
+ - Fix code and tests after updating to upstream 0.8.2 as now all start
+   methods will continue only after observer and emitter are initialized.
+
+
 0.8.2.c1
 ~~~~~~~~
 

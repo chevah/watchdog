@@ -18,33 +18,25 @@ class EmitterSystemMixin(object):
         """
         pass
 
-    def test_run_ok(self):
+    def test_start_ok(self):
         """
-        After emitter start, ready event is set and no error is set.
+        No errors are raised when emitter is successfully started.
         """
         self.sut.start()
 
-        self.assertIsNone(self.sut.start_error)
-        self.assertIsTrue(self.sut.ready.is_set())
         self.assertTrue(self.emitter_queue.empty())
 
         self.endThread(self.sut)
 
-    def test_run_bad_path(self):
+    def test_start_bad_path(self):
         """
         It can be initialized with a bad path but error is only
         raised when emitter starts.
         """
         sut = self.makeEmitter(path='no-such-path')
-        self.assertIsNone(sut.start_error)
 
-        # Start will call the run method.
-        sut.start()
-
-        # Thread is stopped on failures.
-        sut.join()
-        self.assertIsInstance(OSError, sut.start_error)
-        self.assertIsTrue(sut.ready.is_set())
+        with self.assertRaises(OSError):
+            sut.start()
 
     def test_queue_events_file_created(self):
         """
