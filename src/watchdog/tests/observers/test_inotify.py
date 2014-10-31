@@ -17,7 +17,6 @@ if 'rhel-4' in WatchdogTestCase.getHostname():
 
 # Inotify is imported later.
 from watchdog.observers.inotify import InotifyEmitter
-from watchdog.observers.inotify_buffer import STOP_EVENT
 
 
 class InMemoryInotifyBuffer(object):
@@ -96,7 +95,7 @@ class TestInotifyEmitter(WatchdogTestCase, EmitterSystemMixin):
         event.
         """
         self.patchBuffer()
-        self.buffer.queue = [STOP_EVENT]
+        self.buffer.queue = [None]
 
         self.sut.queue_events()
 

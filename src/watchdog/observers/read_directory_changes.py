@@ -66,7 +66,7 @@ class WindowsApiEmitter(EventEmitter):
         self._lock = threading.Lock()
         self._handle = None
 
-    def run(self):
+    def on_thread_start(self):
         """
         Start the looking for changes.
         """
@@ -78,10 +78,9 @@ class WindowsApiEmitter(EventEmitter):
         finally:
             self.ready.set()
 
-        return EventEmitter.run(self)
-
     def on_thread_stop(self):
-        close_directory_handle(self._handle)
+        if self._handle:
+            close_directory_handle(self._handle)
 
     def queue_events(self, timeout):
         winapi_events = read_events(self._handle, self.watch.is_recursive)

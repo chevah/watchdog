@@ -116,7 +116,7 @@ class TestBaseObserver(WatchdogTestCase):
         if observer is None:
             observer = self.sut
         try:
-            return observer._get_emitter_for_watch(watch)
+            return observer._emitter_for_watch.get(watch)
         except KeyError:
             return None
 

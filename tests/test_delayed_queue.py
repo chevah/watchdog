@@ -1,8 +1,6 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2011 Yesudeep Mangalapilly <yesudeep@gmail.com>
-# Copyright 2012 Google, Inc.
+# Copyright 2014 Thomas Amland <thomas.amland@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,13 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from time import time
+from watchdog.utils.delayed_queue import DelayedQueue
 
-# When updating this version number, please update the
-# ``docs/source/global.rst.inc`` file as well.
-VERSION_MAJOR = 0
-VERSION_MINOR = 8
-VERSION_BUILD = 2
-VERSION_INFO = (VERSION_MAJOR, VERSION_MINOR, VERSION_BUILD)
-VERSION_STRING = "%d.%d.%d" % VERSION_INFO
 
-__version__ = VERSION_INFO
+def test_get():
+    q = DelayedQueue(2)
+    q.put("")
+    inserted = time()
+    q.get()
+    elapsed = time() - inserted
+    assert 2.01 > elapsed > 1.99

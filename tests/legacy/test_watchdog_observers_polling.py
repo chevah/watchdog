@@ -66,13 +66,13 @@ class TestPollingEmitter(unittest.TestCase):
     def setUp(self):
         self.event_queue = queue.Queue()
         self.watch = ObservedWatch(temp_dir, True)
-        self.emitter = Emitter(self.event_queue, self.watch, timeout=0.01)
+        self.emitter = Emitter(self.event_queue, self.watch, timeout=0.2)
 
     def teardown(self):
         pass
 
     def test___init__(self):
-        SLEEP_TIME = 0.02
+        SLEEP_TIME = 0.4
         self.emitter.start()
         sleep(SLEEP_TIME)
         mkdir(p('project'))

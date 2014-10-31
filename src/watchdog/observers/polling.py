@@ -77,7 +77,7 @@ class PollingEmitter(EventEmitter):
             listdir=listdir,
             )
 
-    def run(self):
+    def on_thread_start(self):
         """
         Start the looking for changes.
         """
@@ -89,8 +89,6 @@ class PollingEmitter(EventEmitter):
         finally:
             # Signal that emitter is ready. With or without errors.
             self.ready.set()
-
-        return EventEmitter.run(self)
 
     def queue_events(self, timeout):
         # We don't want to hit the disk continuously.

@@ -5,6 +5,19 @@ API changes
 -----------
 
 
+0.8.2.c1
+~~~~~~~~
+
+ - Update chevah code with upstream 0.8.2.
+
+
+0.8.2
+~~~~~
+
+ - Event emitters are no longer started on schedule if ``Observer`` is not
+   already running.
+
+
 0.8.1.c6
 ~~~~~~~~
 

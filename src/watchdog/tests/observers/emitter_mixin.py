@@ -1,6 +1,8 @@
 """
 Common tests for all emitters.
 """
+import unicodedata
+
 from watchdog.events import EVENT_TYPE_CREATED, EVENT_TYPE_MODIFIED
 from watchdog.tests import mk
 
@@ -58,10 +60,28 @@ class EmitterSystemMixin(object):
         event, watch = self.emitter_queue.get()
         new_path = mk.fs.getEncodedPath(
             mk.fs.getRealPathFromSegments(self.test_segments))
-        self.assertEqual(new_path, event.src_path)
+
+        if self.os_name == 'osx':
+            src_path = event.src_path.decode('utf-8')
+            self.assertEqual(
+                mk.fs.getRealPathFromSegments(self.test_segments),
+                unicodedata.normalize('NFC', src_path),
+                )
+        else:
+            self.assertEqual(new_path, event.src_path)
+
+
         self.assertFalse(event.is_directory)
         self.assertEqual(EVENT_TYPE_CREATED, event.event_type)
         event, watch = self.emitter_queue.get()
-        self.assertEqual(mk.fs.getEncodedPath(mk.fs.temp_path), event.src_path)
+
+        if self.os_name == 'osx':
+            src_path = event.src_path.decode('utf-8')
+            self.assertEqual(
+                mk.fs.temp_path, unicodedata.normalize('NFC', src_path))
+        else:
+            self.assertEqual(
+                mk.fs.getEncodedPath(mk.fs.temp_path), event.src_path)
+
         self.assertTrue(event.is_directory)
         self.assertEqual(EVENT_TYPE_MODIFIED, event.event_type)
