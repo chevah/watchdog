@@ -83,6 +83,8 @@ class TestInotifyEmitter(WatchdogTestCase, EmitterSystemMixin):
 
         self.sut.start()
 
+        # Wait for thread to stop.
+        self.sut.join()
         # Low level buffer is not ready but high level emitter is ready
         # due to start error.
         self.assertIsFalse(self.buffer.ready.is_set())

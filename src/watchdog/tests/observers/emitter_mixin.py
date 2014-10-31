@@ -41,6 +41,8 @@ class EmitterSystemMixin(object):
         # Start will call the run method.
         sut.start()
 
+        # Thread is stopped on failures.
+        sut.join()
         self.assertIsInstance(OSError, sut.start_error)
         self.assertIsTrue(sut.ready.is_set())
 
@@ -69,7 +71,6 @@ class EmitterSystemMixin(object):
                 )
         else:
             self.assertEqual(new_path, event.src_path)
-
 
         self.assertFalse(event.is_directory)
         self.assertEqual(EVENT_TYPE_CREATED, event.event_type)
