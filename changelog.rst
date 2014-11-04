@@ -5,6 +5,12 @@ API changes
 -----------
 
 
+0.8.2.c3
+~~~~~~~~
+
+ - Remove debugging logging from inotify_buffer.
+
+
 0.8.2.c2
 ~~~~~~~~
 
