@@ -16,43 +16,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-:module: watchdog.observers.api
-:synopsis: Classes useful to observer implementers.
-:author: yesudeep@google.com (Yesudeep Mangalapilly)
-
-Immutables
-----------
-.. autoclass:: ObservedWatch
-   :members:
-   :show-inheritance:
-
-
-Collections
------------
-.. autoclass:: EventQueue
-   :members:
-   :show-inheritance:
-
-Classes
--------
-.. autoclass:: EventEmitter
-   :members:
-   :show-inheritance:
-
-.. autoclass:: EventDispatcher
-   :members:
-   :show-inheritance:
-
-.. autoclass:: BaseObserver
-   :members:
-   :show-inheritance:
-"""
-
 from __future__ import with_statement
 import threading
 import time
-from watchdog.utils import DaemonThread
+from watchdog.utils import BaseThread
 from watchdog.utils.compat import queue
 from watchdog.utils.bricks import SkipRepeatsQueue
 
@@ -62,7 +29,6 @@ DEFAULT_OBSERVER_TIMEOUT = 1   # in seconds.
 
 # Collection classes
 class EventQueue(SkipRepeatsQueue):
-
     """Thread-safe event queue based on a special queue that skips adding
     the same event (:class:`FileSystemEvent`) multiple times consecutively.
     Thus avoiding dispatching multiple event handling
@@ -72,7 +38,6 @@ class EventQueue(SkipRepeatsQueue):
 
 
 class ObservedWatch(object):
-
     """An scheduled watch.
 
     :param path:
@@ -115,10 +80,9 @@ class ObservedWatch(object):
 
 
 # Observer classes
-class EventEmitter(DaemonThread):
-
+class EventEmitter(BaseThread):
     """
-    Producer daemon thread base class subclassed by event emitters
+    Producer thread base class subclassed by event emitters
     that generate events and populate a queue with them.
 
     :param event_queue:
@@ -136,12 +100,10 @@ class EventEmitter(DaemonThread):
     """
 
     def __init__(self, event_queue, watch, timeout=DEFAULT_EMITTER_TIMEOUT):
-        DaemonThread.__init__(self)
+        BaseThread.__init__(self)
         self._event_queue = event_queue
         self._watch = watch
         self._timeout = timeout
-        self._start_error = None
-        self.ready = threading.Event()
 
     @property
     def timeout(self):
@@ -156,23 +118,6 @@ class EventEmitter(DaemonThread):
         The watch associated with this emitter.
         """
         return self._watch
-
-
-    @property
-    def start_error(self):
-        """
-        Set when emitter fails to start.
-        """
-        return self._start_error
-
-    def start(self):
-        """
-        Start emitter in blocking mode waiting for it to be ready.
-        """
-        super(EventEmitter, self).start()
-        if not self.ready.wait(timeout=10):
-            self._start_error = AssertionError(
-                'Emitter took to much to start.')
 
     def queue_event(self, event):
         """
@@ -205,10 +150,9 @@ class EventEmitter(DaemonThread):
             pass
 
 
-class EventDispatcher(DaemonThread):
-
+class EventDispatcher(BaseThread):
     """
-    Consumer daemon thread base class subclassed by event observer threads
+    Consumer thread base class subclassed by event observer threads
     that dispatch events from an event queue to appropriate event handlers.
 
     :param timeout:
@@ -218,7 +162,7 @@ class EventDispatcher(DaemonThread):
     """
 
     def __init__(self, timeout=DEFAULT_OBSERVER_TIMEOUT):
-        DaemonThread.__init__(self)
+        BaseThread.__init__(self)
         self._event_queue = EventQueue()
         self._timeout = timeout
 
@@ -260,18 +204,15 @@ class EventDispatcher(DaemonThread):
 
 
 class BaseObserver(EventDispatcher):
-
     """Base observer."""
 
     def __init__(self, emitter_class, timeout=DEFAULT_OBSERVER_TIMEOUT):
         EventDispatcher.__init__(self, timeout)
         self._emitter_class = emitter_class
         self._lock = threading.RLock()
-        self._lock_start = threading.Lock()
         self._handlers = dict()
         self._emitters = set()
         self._emitter_for_watch = dict()
-        self._ready = threading.Event()
 
     def _add_emitter(self, emitter):
         self._emitter_for_watch[emitter.watch] = emitter
@@ -280,60 +221,47 @@ class BaseObserver(EventDispatcher):
     def _remove_emitter(self, emitter):
         del self._emitter_for_watch[emitter.watch]
         self._emitters.remove(emitter)
-
-        # We might remove an emitter, before starting it, so there is no
-        # need to join the thread
-        if emitter.is_alive():
-            emitter.stop()
+        emitter.stop()
+        try:
             emitter.join()
-
-    def _get_emitter_for_watch(self, watch):
-        return self._emitter_for_watch[watch]
+        except RuntimeError:
+            pass
 
     def _clear_emitters(self):
         for emitter in self._emitters.copy():
             self._remove_emitter(emitter)
 
     def _add_handler_for_watch(self, event_handler, watch):
-        try:
-            self._handlers[watch].add(event_handler)
-        except KeyError:
-            self._handlers[watch] = set([event_handler])
-
-    def _get_handlers_for_watch(self, watch):
-        return self._handlers[watch]
+        if watch not in self._handlers:
+            self._handlers[watch] = set()
+        self._handlers[watch].add(event_handler)
 
     def _remove_handlers_for_watch(self, watch):
         del self._handlers[watch]
 
-    def _remove_handler_for_watch(self, handler, watch):
-        handlers = self._get_handlers_for_watch(watch)
-        handlers.remove(handler)
+    @property
+    def emitters(self):
+        """Returns event emitter created by this observer."""
+        return self._emitters
 
     def _start_emitter(self, emitter):
         """
-        Start emitter and wait for it to become ready.
+        Start emitter.
         """
         # Don't start when it was already started.
         if emitter.is_alive():
             return
 
-        emitter.start()
-
-        if not emitter.ready.wait(timeout=10):
+        try:
+            emitter.start()
+        except:
             self.unschedule(emitter.watch)
-            raise AssertionError('Emitter took to much to start.')
+            raise
 
-        if emitter.start_error:
-            self.unschedule(emitter.watch)
-            raise emitter.start_error
-
-    @property
-    def ready(self):
-        """
-        Event which is set after observers starts.
-        """
-        return self._ready
+    def start(self):
+        for emitter in self._emitters:
+            self._start_emitter(emitter)
+        super(BaseObserver, self).start()
 
     def schedule(self, event_handler, path, recursive=False):
         """
@@ -362,19 +290,13 @@ class BaseObserver(EventDispatcher):
         with self._lock:
             watch = ObservedWatch(path, recursive)
             self._add_handler_for_watch(event_handler, watch)
-            try:
-                # If we have an emitter for this watch already, we don't create a
-                # new emitter. Instead we add the handler to the event
-                # object.
-                emitter = self._get_emitter_for_watch(watch)
-            except KeyError:
-                # Create a new emitter and start it.
+
+            # If we don't have an emitter for this watch already, create it.
+            if self._emitter_for_watch.get(watch) is None:
                 emitter = self._emitter_class(event_queue=self.event_queue,
                                               watch=watch,
                                               timeout=self.timeout)
                 self._add_emitter(emitter)
-                # We only start the emitter if main thread is already
-                # running.
                 if self.is_alive():
                     self._start_emitter(emitter)
         return watch
@@ -413,7 +335,7 @@ class BaseObserver(EventDispatcher):
             :class:`ObservedWatch`
         """
         with self._lock:
-            self._remove_handler_for_watch(event_handler, watch)
+            self._handlers[watch].remove(event_handler)
 
     def unschedule(self, watch):
         """Unschedules a watch.
@@ -425,12 +347,9 @@ class BaseObserver(EventDispatcher):
             :class:`ObservedWatch`
         """
         with self._lock:
-            try:
-                emitter = self._get_emitter_for_watch(watch)
-                self._remove_handlers_for_watch(watch)
-                self._remove_emitter(emitter)
-            except KeyError:
-                raise
+            emitter = self._emitter_for_watch[watch]
+            del self._handlers[watch]
+            self._remove_emitter(emitter)
 
     def unschedule_all(self):
         """Unschedules all watches and detaches all associated event
@@ -444,7 +363,7 @@ class BaseObserver(EventDispatcher):
 
     def _dispatch_event(self, event, watch):
         with self._lock:
-            for handler in self._get_handlers_for_watch(watch):
+            for handler in self._handlers[watch]:
                 handler.dispatch(event)
 
     def dispatch_events(self, event_queue, timeout):
@@ -457,20 +376,3 @@ class BaseObserver(EventDispatcher):
             # queue is empty.
             pass
         event_queue.task_done()
-
-    def start_blocking(self, timeout=60):
-        """
-        Start observer and wait for it to start listening for changes.
-        """
-        self.start()
-        if not self.ready.wait(timeout=timeout):
-            raise AssertionError('Took to much to start.')
-
-    def run(self):
-        with self._lock:
-            try:
-                for emitter in self._emitters:
-                    self._start_emitter(emitter)
-            finally:
-                self.ready.set()
-        return EventDispatcher.run(self)

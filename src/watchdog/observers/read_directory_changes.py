@@ -66,22 +66,12 @@ class WindowsApiEmitter(EventEmitter):
         self._lock = threading.Lock()
         self._handle = None
 
-    def run(self):
-        """
-        Start the looking for changes.
-        """
-        try:
-            self._handle = get_directory_handle(self._watch.path)
-        except Exception as error:
-            self._start_error = error
-            return
-        finally:
-            self.ready.set()
-
-        return EventEmitter.run(self)
+    def on_thread_start(self):
+        self._handle = get_directory_handle(self.watch.path)
 
     def on_thread_stop(self):
-        close_directory_handle(self._handle)
+        if self._handle:
+            close_directory_handle(self._handle)
 
     def queue_events(self, timeout):
         winapi_events = read_events(self._handle, self.watch.is_recursive)

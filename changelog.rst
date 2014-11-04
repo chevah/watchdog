@@ -5,6 +5,32 @@ API changes
 -----------
 
 
+0.8.2.c3
+~~~~~~~~
+
+ - Remove debugging logging from inotify_buffer.
+
+
+0.8.2.c2
+~~~~~~~~
+
+ - Fix code and tests after updating to upstream 0.8.2 as now all start
+   methods will continue only after observer and emitter are initialized.
+
+
+0.8.2.c1
+~~~~~~~~
+
+ - Update chevah code with upstream 0.8.2.
+
+
+0.8.2
+~~~~~
+
+ - Event emitters are no longer started on schedule if ``Observer`` is not
+   already running.
+
+
 0.8.1.c6
 ~~~~~~~~
 

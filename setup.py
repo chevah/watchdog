@@ -56,6 +56,9 @@ if get_platform().startswith('macosx'):
                 '-Wall',
                 '-Wextra',
                 '-fPIC',
+
+                # required w/Xcode 5.1+ and above because of '-mno-fused-madd'
+                '-Wno-error=unused-command-line-argument-hard-error-in-future'
             ]
         ),
     ]
@@ -64,7 +67,10 @@ if get_platform().startswith('macosx'):
 class PyTest(TestCommand):
     def finalize_options(self):
         TestCommand.finalize_options(self)
-        self.test_args = [ '--cov=' + SRC_DIR, 'tests' ]
+        self.test_args = [
+            '--cov=' + SRC_DIR,
+            '--cov-report=term-missing',
+            'tests']
         self.test_suite = True
     def run_tests(self):
         import pytest
@@ -98,7 +104,7 @@ with open('README.rst') as f:
 changelog = ''
 
 distribution = setup(name="watchdog",
-      version=version.VERSION_STRING + '.c6',
+      version=version.VERSION_STRING + '.c3',
       description="Filesystem events monitoring",
       long_description=readme + '\n\n' + changelog,
       author="Yesudeep Mangalapilly",

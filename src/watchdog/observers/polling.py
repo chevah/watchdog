@@ -71,26 +71,10 @@ class PollingEmitter(EventEmitter):
         self._snapshot = None
         self._lock = threading.Lock()
         self._take_snapshot = lambda: DirectorySnapshot(
-            self.watch.path,
-            self.watch.is_recursive,
-            stat=stat,
-            listdir=listdir,
-            )
+            self.watch.path, self.watch.is_recursive, stat=stat, listdir=listdir)
 
-    def run(self):
-        """
-        Start the looking for changes.
-        """
-        try:
-            self._snapshot = self._take_snapshot()
-        except Exception, error:
-            self._start_error = error
-            self.stop()
-        finally:
-            # Signal that emitter is ready. With or without errors.
-            self.ready.set()
-
-        return EventEmitter.run(self)
+    def on_thread_start(self):
+        self._snapshot = self._take_snapshot()
 
     def queue_events(self, timeout):
         # We don't want to hit the disk continuously.

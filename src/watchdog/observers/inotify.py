@@ -71,7 +71,7 @@ from __future__ import with_statement
 
 import os
 import threading
-from .inotify_buffer import InotifyBuffer, STOP_EVENT
+from .inotify_buffer import InotifyBuffer
 
 from watchdog.observers.api import (
     EventEmitter,
@@ -117,35 +117,18 @@ class InotifyEmitter(EventEmitter):
         self._inotify = InotifyBuffer(unicode_paths.encode(watch.path),
                                       watch.is_recursive)
 
-    def _decode_path(self, path):
-        """ Decode path only if unicode string was passed to this emitter. """
-        if isinstance(self.watch.path, bytes):
-            return path
-        return unicode_paths.decode(path)
-
-    def run(self):
-        try:
-            self._inotify.start()
-        except Exception, error:
-            self._start_error = error
-            self.stop()
-        finally:
-            # Signal the emitter is ready... with or without errors.
-            self.ready.set()
-
-        return EventEmitter.run(self)
-
+    def on_thread_start(self):
+        self._inotify.start()
 
     def on_thread_stop(self):
-        self._inotify.close()
+        if self._inotify:
+            self._inotify.close()
 
     def queue_events(self, timeout=None):
         with self._lock:
             event = self._inotify.read_event()
-
-            if event is STOP_EVENT:
+            if event is None:
                 return
-
             if isinstance(event, tuple):
                 move_from, move_to = event
                 src_path = self._decode_path(move_from.src_path)
@@ -184,6 +167,12 @@ class InotifyEmitter(EventEmitter):
                 cls = DirCreatedEvent if event.is_directory else FileCreatedEvent
                 self.queue_event(cls(src_path))
                 self.queue_event(DirModifiedEvent(os.path.dirname(src_path)))
+
+    def _decode_path(self, path):
+        """ Decode path only if unicode string was passed to this emitter. """
+        if isinstance(self.watch.path, bytes):
+            return path
+        return unicode_paths.decode(path)
 
 
 class InotifyObserver(BaseObserver):
